@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
@@ -26,7 +28,7 @@ public class Reactor {
 
     private final ReentrantReadWriteLock srwLock = new ReentrantReadWriteLock();
 
-    private final ForkJoinPool pool = new ForkJoinPool();
+    private final ForkJoinPool pool = new ForkJoinPool(4);
 
     private volatile Future<?> dispatcher = null;
 
@@ -45,8 +47,14 @@ public class Reactor {
                 try {
                     selectorBarrier();
                     this.sel.select();
-                    this.sel.selectedKeys().forEach(handleIOEvent);
-                    this.sel.selectedKeys().clear();
+                    logger.printf(Level.INFO,"%d are ready%n", this.sel.selectedKeys().size());
+                    Set<SelectionKey> keys = this.sel.selectedKeys();
+                    for(Iterator<SelectionKey> keyit = keys.iterator();keyit.hasNext();) {
+                        handleIOEvent.accept(keyit.next());
+                        keyit.remove();
+                    }
+                    logger.printf(Level.INFO, "last selection is clear.");
+
                 } catch (Exception e) {
                     logger.error(e);
                 }
@@ -81,9 +89,10 @@ public class Reactor {
                 } catch (IOException e) {
                     logger.error(e);
                 } finally {
-                    logger.info("process done.");
                     completeHandlers.add(handler);
                     sel.wakeup();
+                    logger.printf(Level.INFO, "process done %d ----%n" , handler.hashCode());
+
                 }
             };
 
@@ -156,5 +165,7 @@ public class Reactor {
                 handler.restoreOps();
             }
         });
+        completeHandlers.clear();
+
     }
 }

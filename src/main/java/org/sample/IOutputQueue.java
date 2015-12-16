@@ -8,4 +8,6 @@ public interface IOutputQueue<T> {
     public void enqueue(byte[] bytes);
 
     public T dequeue();
+
+    public boolean isEmpty();
 }

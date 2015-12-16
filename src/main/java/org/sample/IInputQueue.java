@@ -10,4 +10,6 @@ public interface IInputQueue<T> {
     public void equeue(byte[] bytes);
 
     public T nextMessage() ;
+
+    public boolean isEmpty();
 }

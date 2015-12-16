@@ -1,5 +1,6 @@
 package org.sample;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -25,7 +26,8 @@ class ChannelWrapper {
 
     private IOutputQueue<String> outputQ = null;
     private IInputQueue<String> inputQ = null;
-    private ByteBuffer buf = ByteBuffer.allocate(1024);
+    private ByteBuffer inputBuf = ByteBuffer.allocate(1024);
+    private ByteBuffer outputBuf = ByteBuffer.allocate(1024);
 
     public ChannelWrapper(SelectionKey key, SocketChannel sc, IHandler handler) {
         this.key = key;
@@ -56,9 +58,9 @@ class ChannelWrapper {
 
     public void process() throws IOException {
         try {
-            logger.info("in process.");
-            this.drainOutput();
+            logger.printf(Level.INFO, "in process.%n");
             this.fillInput();
+            this.drainOutput();
             handler.handle();
         } catch (IOException e) {
             hasError = true;
@@ -67,56 +69,65 @@ class ChannelWrapper {
     }
 
     public boolean isDone() {
-        return hasError || this.writeDisabled() && this.readDisabled();
+        return hasError || this.isWriteDisabled() && this.isReadDisabled();
     }
 
     private void fillInput() throws IOException {
-        int nr = sc.read(buf);
+        int nr = sc.read(inputBuf);
 
         if (nr == -1) {
             this.disableRead();
             this.sc.shutdownInput();
-            logger.info("on inputs, closing input stream.");
+            logger.printf(Level.INFO,"on inputs, closing input stream.%n");
             return;
         }
 
-        enableRead();
-        buf.flip();
+        logger.printf(Level.INFO, "read %d bytes.%n", nr);
+        inputBuf.flip();
 
-
-        while (buf.hasRemaining()) {
-            final byte[] bytes = new byte[buf.remaining()];
-            buf = buf.get(bytes, 0, buf.remaining());
-             handler.getInputQ().equeue(bytes);
+        while (inputBuf.hasRemaining()) {
+            final byte[] bytes = new byte[inputBuf.remaining()];
+            inputBuf = inputBuf.get(bytes, 0, inputBuf.remaining());
+            handler.getInputQ().equeue(bytes);
         }
 
-        buf.compact();
+        inputBuf.compact();
+
+        enableRead();
     }
 
     private void drainOutput() throws IOException {
 
         Object msg = this.handler.getOutputQ().dequeue();
-       // buf.clear();
+        // inputBuf.clear();
 
+        boolean writePending = false;
         if (msg != null) {
-            this.enableWrite();
+            writePending = true;
             do {
                 sc.write(ByteBuffer.wrap(msg.toString().getBytes()));
+                logger.printf(Level.INFO," write %s%n" , msg.toString());
 //                byte[] bytes = msg.toString().getBytes();
 //                int nw = 0, remain = bytes.length;
 //
-//                while (nw < remain && buf.hasRemaining()) {
-//                    int len = Math.min(remain, buf.remaining());
-//                    buf.put(bytes, nw, len);
+//                while (nw < remain && inputBuf.hasRemaining()) {
+//                    int len = Math.min(remain, inputBuf.remaining());
+//                    inputBuf.put(bytes, nw, len);
 //                    nw += len;
 //                }
 //
-//                buf.flip();
-//                logger.info("res" + new String(buf.array()));
-//                while (buf.hasRemaining()) {
-//                    sc.write(buf);
+//                inputBuf.flip();
+//                logger.info("res" + new String(inputBuf.array()));
+//                while (inputBuf.hasRemaining()) {
+//                    sc.write(inputBuf);
 //                }
             } while ((msg = this.handler.getOutputQ().dequeue()) != null);
+        }
+
+        if (this.handler.getOutputQ().isEmpty() && !writePending) {
+            this.disableWrite();
+        } else {
+            this.enableWrite();
         }
     }
 
@@ -129,10 +140,10 @@ class ChannelWrapper {
     }
 
     private void disableRead() {
-        intrestingOps ^= SelectionKey.OP_READ;
+        intrestingOps &= ~SelectionKey.OP_READ;
     }
 
-    private boolean readDisabled() {
+    private boolean isReadDisabled() {
         return (intrestingOps & SelectionKey.OP_READ) == 0;
     }
 
@@ -141,10 +152,10 @@ class ChannelWrapper {
     }
 
     private void disableWrite() {
-        intrestingOps ^= SelectionKey.OP_WRITE;
+        intrestingOps &= ~SelectionKey.OP_WRITE;
     }
 
-    private boolean writeDisabled() {
+    private boolean isWriteDisabled() {
         return (intrestingOps & SelectionKey.OP_WRITE) == 0;
     }
 
@@ -153,8 +164,9 @@ class ChannelWrapper {
 
         @Override
         public void enqueue(byte[] bytes) {
+            logger.printf(Level.INFO, "enqueue %s and turn on write%n", new String(bytes));
             enableWrite();
-           builder.append(new String(bytes));
+            builder.append(new String(bytes));
         }
 
         @Override
@@ -169,6 +181,12 @@ class ChannelWrapper {
             this.builder = this.builder.delete(0, lineFeed + 1);
             return temp;
         }
+
+        @Override
+        public boolean isEmpty() {
+            return builder.length() == 0;
+        }
+
     }
 
     private class StringBuilderInputQueue implements IInputQueue<String> {
@@ -190,6 +208,11 @@ class ChannelWrapper {
             String temp = this.builder.substring(0, lineFeed);
             this.builder = this.builder.delete(0, lineFeed + 1);
             return temp;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return builder.length() == 0;
         }
     }
 }
