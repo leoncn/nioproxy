@@ -1,5 +1,11 @@
 package org.sample;
 
+
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -11,6 +17,8 @@ import java.nio.channels.SocketChannel;
  */
 public class Acceptor {
 
+    private static Logger logger = LogManager.getLogger();
+
     public static void main(String[] args) throws IOException {
         ServerSocketChannel svr = ServerSocketChannel.open();
         svr.bind(new InetSocketAddress(1234));
@@ -18,7 +26,7 @@ public class Acceptor {
         Reactor reactor = new Reactor();
         reactor.start();
 
-        System.out.println("reactor is running.");
+        logger.printf(Level.INFO, "reactor is running.");
         SocketChannel sc = null;
         while( ( sc = svr.accept() ) != null) {
             reactor.registerChannel(sc, new EchoHandler());

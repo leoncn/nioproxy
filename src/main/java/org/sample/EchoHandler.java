@@ -18,7 +18,6 @@ public class EchoHandler implements IHandler {
     public void handle() {
         Object req = null;
         while ((req = this.getInputQ().nextMessage()) != null) {
-            logger.info("handling " + req);
             req = req + "\n";
             this.getOutputQ().enqueue(req.toString().toUpperCase().getBytes());
         }

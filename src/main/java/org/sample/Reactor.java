@@ -10,10 +10,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
@@ -28,7 +25,7 @@ public class Reactor {
 
     private final ReentrantReadWriteLock srwLock = new ReentrantReadWriteLock();
 
-    private final ForkJoinPool pool = new ForkJoinPool(4);
+    private final ForkJoinPool pool = new ForkJoinPool();
 
     private volatile Future<?> dispatcher = null;
 
@@ -47,14 +44,8 @@ public class Reactor {
                 try {
                     selectorBarrier();
                     this.sel.select();
-                    logger.printf(Level.INFO,"%d are ready%n", this.sel.selectedKeys().size());
-                    Set<SelectionKey> keys = this.sel.selectedKeys();
-                    for(Iterator<SelectionKey> keyit = keys.iterator();keyit.hasNext();) {
-                        handleIOEvent.accept(keyit.next());
-                        keyit.remove();
-                    }
-                    logger.printf(Level.INFO, "last selection is clear.");
-
+                    this.sel.selectedKeys().forEach(handleIOEvent);
+                    this.sel.selectedKeys().clear();
                 } catch (Exception e) {
                     logger.error(e);
                 }
@@ -63,40 +54,37 @@ public class Reactor {
 
         handleIOEvent = (key) -> {
 
-            logger.printf(Level.INFO, "channel key : %s %s, %s%n", key.hashCode(), key.isReadable(), key.isWritable());
             ChannelWrapper handler = (ChannelWrapper) key.attachment();
             handler.prepare();
 
-//            RecursiveAction task = new RecursiveAction() {
-//                @Override
-//                protected void compute() {
-//                    try {
-//                        handler.process();
-//                    } catch (IOException e) {
-//                        logger.error(e);
-//                    } finally {
-//                        logger.info("process done.");
-//                        completeHandlers.add(handler);
-//                        sel.wakeup();
-//                    }
-//                }
-//            };
-//
-//            task.fork();
-            Runnable task = () -> {
-                try {
-                    handler.process();
-                } catch (IOException e) {
-                    logger.error(e);
-                } finally {
-                    completeHandlers.add(handler);
-                    sel.wakeup();
-                    logger.printf(Level.INFO, "process done %d ----%n" , handler.hashCode());
-
+            RecursiveAction task = new RecursiveAction() {
+                @Override
+                protected void compute() {
+                    try {
+                        handler.process();
+                    } catch (IOException e) {
+                        logger.error(e);
+                    } finally {
+                        completeHandlers.add(handler);
+                        sel.wakeup();
+                    }
                 }
             };
 
-            this.pool.submit(task);
+            task.fork();
+//            Runnable task = () -> {
+//                try {
+//                    handler.process();
+//                } catch (IOException e) {
+//                    logger.error(e);
+//                } finally {
+//                    completeHandlers.add(handler);
+//                    sel.wakeup();
+//
+//                }
+//            };
+//
+//            this.pool.submit(task);
 
         };
     }
@@ -157,11 +145,13 @@ public class Reactor {
         this.completeHandlers.forEach(handler -> {
             if (handler.isDone()) {
                 try {
+                    logger.info("closing a socket connection.");
                     this.unRegisterChannel(handler);
                 } catch (IOException e) {
                     logger.error(e);
                 }
             } else {
+//                logger.printf(Level.INFO, "put %d to next round.", handler.hashCode());
                 handler.restoreOps();
             }
         });
