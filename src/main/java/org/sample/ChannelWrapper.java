@@ -5,6 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -19,6 +20,7 @@ class ChannelWrapper {
     private SelectionKey key;
     private SocketChannel sc;
     private IHandler handler;
+    private InetSocketAddress remoteAddr = null;
 
     private int reqCnt = 0;
     private int resCnt = 0;
@@ -30,6 +32,15 @@ class ChannelWrapper {
         this.key = key;
         this.sc = sc;
         this.handler = handler;
+        try {
+            this.remoteAddr = (InetSocketAddress) sc.getRemoteAddress();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public InetSocketAddress getRemoteAddr() {
+        return remoteAddr;
     }
 
     public SelectionKey getKey() {
@@ -65,18 +76,19 @@ class ChannelWrapper {
 
     public boolean isDone() {
         boolean done = this.isWriteOpsOff() && this.isReadOpsOff();
-        logger.printf(Level.INFO, " total req %d , res %d.", this.reqCnt, this.resCnt);
+        logger.printf(Level.INFO, "%s total req %d , res %d | read:%s write:%s.",
+                this.key.hashCode(), this.reqCnt, this.resCnt, !this.isReadOpsOff(), !this.isWriteOpsOff());
 
         return done;
     }
 
     private void fillInput() throws IOException {
+     //   inputBuf.clear();
         int nr = sc.read(inputBuf);
 
         if (nr == -1) {
             this.offReadOps();
             this.sc.shutdownInput();
-            logger.printf(Level.INFO, "No inputs, closing input stream.%n");
             return;
         }
 
@@ -84,7 +96,9 @@ class ChannelWrapper {
             inputBuf.flip();
             final byte[] bytes = new byte[inputBuf.remaining()];
             inputBuf = inputBuf.get(bytes, 0, inputBuf.remaining());
+
             handler.getInputQ().equeue(bytes);
+
             inputBuf.compact();
         } while ((nr = sc.read(inputBuf)) > 0);
 
@@ -98,14 +112,19 @@ class ChannelWrapper {
 
         if (writePending) {
             do {
-                sc.write(ByteBuffer.wrap(msg.toString().getBytes()));
+                ByteBuffer outBuf = ByteBuffer.wrap(msg.toString().getBytes());
+
+                int nw = 0;
+                while(outBuf.hasRemaining()) {
+                    nw += sc.write(outBuf);
+                }
+             //   logger.d(nw + " "  + msg );
             } while ((msg = this.handler.getOutputQ().dequeue()) != null);
         }
 
         if (this.handler.getOutputQ().isEmpty() && !writePending) {
             this.offWriteOps();
         } else {
-
             this.onWriteOps();
         }
     }

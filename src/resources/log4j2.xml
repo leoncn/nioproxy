@@ -4,13 +4,29 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </Console>
+
+        <File name="client" fileName="logs/client.log">
+            <PatternLayout>
+                <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+            </PatternLayout>
+        </File>
+
+
+        <File name="server" fileName="logs/server.log">
+            <PatternLayout>
+                <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+            </PatternLayout>
+        </File>
+
     </Appenders>
     <Loggers>
-        <!--Logger name="com.foo.Bar" level="trace" additivity="false">
+        <Logger name="org.sample.client.echo" level="INFO" additivity="false">
             <AppenderRef ref="Console"/>
-        </Logger-->
+            <AppenderRef ref="client"/>
+        </Logger>
         <Root level="info">
             <AppenderRef ref="Console"/>
+            <AppenderRef ref="server"/>
         </Root>
     </Loggers>
 </Configuration>

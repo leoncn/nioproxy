@@ -3,6 +3,7 @@ package org.sample;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.plugins.convert.TypeConverters.CharacterConverter;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -25,7 +26,8 @@ public class Reactor {
 
     private final ReentrantReadWriteLock srwLock = new ReentrantReadWriteLock();
 
-    private final ForkJoinPool pool = new ForkJoinPool();
+//    private final ForkJoinPool pool = new ForkJoinPool();
+    private final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private volatile Future<?> dispatcher = null;
 
@@ -44,6 +46,7 @@ public class Reactor {
                 try {
                     selectorBarrier();
                     this.sel.select();
+                    //logger.printf(Level.INFO, "%d ready. ",   this.sel.selectedKeys().size());
                     this.sel.selectedKeys().forEach(handleIOEvent);
                     this.sel.selectedKeys().clear();
                 } catch (Exception e) {
@@ -55,36 +58,39 @@ public class Reactor {
         handleIOEvent = (key) -> {
 
             ChannelWrapper handler = (ChannelWrapper) key.attachment();
+
             handler.prepare();
 
-            RecursiveAction task = new RecursiveAction() {
-                @Override
-                protected void compute() {
-                    try {
-                        handler.process();
-                    } catch (IOException e) {
-                        logger.error(e);
-                    } finally {
-                        completeHandlers.add(handler);
-                        sel.wakeup();
-                    }
-                }
-            };
-
-            task.fork();
-//            Runnable task = () -> {
-//                try {
-//                    handler.process();
-//                } catch (IOException e) {
-//                    logger.error(e);
-//                } finally {
-//                    completeHandlers.add(handler);
-//                    sel.wakeup();
-//
+//            RecursiveAction task = new RecursiveAction() {
+//                @Override
+//                protected void compute() {
+//                    try {
+//                        handler.process();
+//                    } catch (IOException e) {
+//                        logger.error(e);
+//                    } finally {
+//                        completeHandlers.add(handler);
+//                        sel.wakeup();
+//                    }
 //                }
 //            };
 //
-//            this.pool.submit(task);
+//            task.fork();
+            Runnable task = () -> {
+                try {
+                    //logger.printf(Level.INFO, "%d read: %s , write: %s ",key.hashCode(), key.isReadable(), key.isWritable());
+                    handler.process();
+                } catch (IOException e) {
+                    logger.error(e);
+                } finally {
+                //    logger.printf(Level.INFO, "%d goes to completes", key.hashCode());
+                    completeHandlers.add(handler);
+                    sel.wakeup();
+
+                }
+            };
+
+            this.pool.submit(task);
 
         };
     }
@@ -142,20 +148,13 @@ public class Reactor {
     }
 
     private void clearHandlerQueue() {
-        this.completeHandlers.forEach(handler -> {
+        ChannelWrapper handler = null;
+        while( ( handler  = this.completeHandlers.poll() ) != null ) {
             if (handler.isDone()) {
-                try {
-                    logger.info("closing a socket connection.");
-                    this.unRegisterChannel(handler);
-                } catch (IOException e) {
-                    logger.error(e);
-                }
-            } else {
-//                logger.printf(Level.INFO, "put %d to next round.", handler.hashCode());
-                handler.restoreOps();
+                logger.printf(Level.INFO, "Close a connection %s.", handler.getRemoteAddr());
+                continue;
             }
-        });
-        completeHandlers.clear();
-
+            handler.restoreOps();
+        }
     }
 }

@@ -1,7 +1,10 @@
-package org.sample;
+package org.sample.client.echo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sample.IHandler;
+import org.sample.IInputQueue;
+import org.sample.IOutputQueue;
 
 
 /**
@@ -18,8 +21,8 @@ public class EchoHandler implements IHandler {
     public void handle() {
         Object req = null;
         while ((req = this.getInputQ().nextMessage()) != null) {
-            req = req + "\n";
-            this.getOutputQ().enqueue(req.toString().toUpperCase().getBytes());
+            String res = String.format("%s%n", req);
+            this.getOutputQ().enqueue(res.toUpperCase().getBytes());
         }
     }
 
