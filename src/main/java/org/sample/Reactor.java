@@ -26,8 +26,8 @@ public class Reactor {
 
     private final ReentrantReadWriteLock srwLock = new ReentrantReadWriteLock();
 
-//    private final ForkJoinPool pool = new ForkJoinPool();
-    private final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private final ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors() + 1);
+//    private final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
 
     private volatile Future<?> dispatcher = null;
 
@@ -46,7 +46,6 @@ public class Reactor {
                 try {
                     selectorBarrier();
                     this.sel.select();
-                    //logger.printf(Level.INFO, "%d ready. ",   this.sel.selectedKeys().size());
                     this.sel.selectedKeys().forEach(handleIOEvent);
                     this.sel.selectedKeys().clear();
                 } catch (Exception e) {
@@ -61,36 +60,39 @@ public class Reactor {
 
             handler.prepare();
 
-//            RecursiveAction task = new RecursiveAction() {
-//                @Override
-//                protected void compute() {
-//                    try {
-//                        handler.process();
-//                    } catch (IOException e) {
-//                        logger.error(e);
-//                    } finally {
-//                        completeHandlers.add(handler);
-//                        sel.wakeup();
-//                    }
-//                }
-//            };
-//
-//            task.fork();
-            Runnable task = () -> {
-                try {
-                    //logger.printf(Level.INFO, "%d read: %s , write: %s ",key.hashCode(), key.isReadable(), key.isWritable());
-                    handler.process();
-                } catch (IOException e) {
-                    logger.error(e);
-                } finally {
-                //    logger.printf(Level.INFO, "%d goes to completes", key.hashCode());
-                    completeHandlers.add(handler);
-                    sel.wakeup();
-
+            RecursiveAction task = new RecursiveAction() {
+                @Override
+                protected void compute() {
+                    try {
+                        handler.process();
+                    } catch (IOException e) {
+                        logger.error(e);
+                    } finally {
+                        completeHandlers.add(handler);
+                        sel.wakeup();
+                    }
                 }
             };
 
-            this.pool.submit(task);
+            task.fork();
+//            Runnable task = () -> {
+//                logger.printf(Level.DEBUG, "submit %d for process. read: %s , write: %s ", key.hashCode(), key.isReadable(), key.isWritable());
+//                try {
+//                    handler.process();
+//                } catch (IOException e) {
+//                    logger.error(e);
+//                } finally {
+//                    logger.printf(Level.DEBUG, "%d process done, try to join complete Q.", key.hashCode());
+//                    while(!completeHandlers.offer(handler)) {
+//                        logger.printf(Level.INFO, "%d complete is full, retrying...", key.hashCode());
+//                    }
+//                    logger.printf(Level.DEBUG, "%d join complete Q successfully.", key.hashCode());
+//                    sel.wakeup();
+//
+//                }
+//            };
+//
+//            this.pool.submit(task);
 
         };
     }
@@ -149,12 +151,12 @@ public class Reactor {
 
     private void clearHandlerQueue() {
         ChannelWrapper handler = null;
-        while( ( handler  = this.completeHandlers.poll() ) != null ) {
+        while ((handler = this.completeHandlers.poll()) != null) {
             if (handler.isDone()) {
                 logger.printf(Level.INFO, "Close a connection %s.", handler.getRemoteAddr());
                 continue;
             }
-            handler.restoreOps();
+           handler.restoreOps();
         }
     }
 }

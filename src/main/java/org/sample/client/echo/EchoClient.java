@@ -12,12 +12,15 @@ import org.apache.mina.transport.socket.nio.NioSocketConnector;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.time.Instant;
+import java.time.temporal.TemporalUnit;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * Created by U0128754 on 12/16/2015.
@@ -28,7 +31,7 @@ public class EchoClient {
     private static Logger logger = LogManager.getLogger();
 
     private SocketAddress remoteAddr = null;
-    private NioSocketConnector connector = new NioSocketConnector();
+    private static NioSocketConnector connector = new NioSocketConnector();
 
     public EchoClient(SocketAddress remoteAddr) {
         this.remoteAddr = remoteAddr;
@@ -54,7 +57,8 @@ public class EchoClient {
        // ForkJoinPool fjp = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
         ExecutorService pool = Executors.newCachedThreadPool();
 
-        int N = 10240, M = 11;
+        long N = 10240;
+        int M = 4;//Runtime.getRuntime().availableProcessors();
         CountDownLatch doneSignal = new CountDownLatch(M);
         CountDownLatch startSinal = new CountDownLatch(M + 1);
 
@@ -69,7 +73,6 @@ public class EchoClient {
                                 return value;
                             });
 
-                            logger.printf(Level.INFO, "%s : %d", cp.getName(), v.get());
                             if (v.get() == N) {
                                 logger.printf(Level.INFO, "%s has done.", cp.getName());
                                 doneSignal.countDown();
@@ -83,7 +86,7 @@ public class EchoClient {
 
                 startSinal.countDown();
                 startSinal.await();
-                IntStream.range(0, N).forEach(i -> pipe.send(() -> String.format("MSG-#%d %s", i, Thread.currentThread().getName())));
+                LongStream.range(0, N).forEach(i -> pipe.send(() -> String.format("MSG-#%d %s", i, pipe.getName())));
 
 
             } catch (InterruptedException e) {
@@ -91,12 +94,20 @@ public class EchoClient {
             }
         };
 
+        Instant now = java.time.Instant.now();
+
         IntStream.range(0, M).forEach(i -> pool.submit(task));
 
         startSinal.countDown();
         doneSignal.await();
+
+        logger.printf(Level.INFO, "Rate %d", M*N/java.time.Duration.between(now, Instant.now()).toMillis());
         cache.forEach((key, v) -> client.logger.printf(Level.INFO, "%s:%s%n", key.hashCode(), v));
         logger.printf(Level.INFO, "All %d * %d have been done.", M, N);
+        pool.shutdown();
+        pool.awaitTermination(5, TimeUnit.SECONDS);
+        logger.info("pool shutdown." + pool.isShutdown());
+        connector.dispose(true);
 
     }
 
@@ -124,7 +135,7 @@ public class EchoClient {
         }
 
         public String getName() {
-            return this.name + " R: " + this.session.getReadMessages() + " W: " + session.getWrittenMessages();
+            return this.name ;
         }
 
         public void setSession(IoSession session) {
@@ -181,6 +192,7 @@ public class EchoClient {
 
         @Override
         public void messageReceived(IoSession session, Object message) throws Exception {
+            logger.printf(Level.DEBUG, "Receive %s", message);
             super.messageReceived(session, message);
             ConnecionPipe pipe = (ConnecionPipe) session.getAttribute(CONN_PIPE_KEY);
             pipe.receive(((String) message).getBytes());
@@ -188,6 +200,7 @@ public class EchoClient {
 
         @Override
         public void messageSent(IoSession session, Object message) throws Exception {
+            logger.printf(Level.DEBUG, "Sent %s", message);
             super.messageSent(session, message);
         }
 

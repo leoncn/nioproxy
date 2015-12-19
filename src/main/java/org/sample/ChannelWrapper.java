@@ -71,12 +71,12 @@ class ChannelWrapper {
             this.offWriteOps();
             this.offReadOps();
             throw e;
-        }
+        } 
     }
 
     public boolean isDone() {
         boolean done = this.isWriteOpsOff() && this.isReadOpsOff();
-        logger.printf(Level.INFO, "%s total req %d , res %d | read:%s write:%s.",
+        logger.printf(Level.DEBUG, "%s total req %d , res %d | read:%s write:%s.",
                 this.key.hashCode(), this.reqCnt, this.resCnt, !this.isReadOpsOff(), !this.isWriteOpsOff());
 
         return done;
@@ -118,7 +118,6 @@ class ChannelWrapper {
                 while(outBuf.hasRemaining()) {
                     nw += sc.write(outBuf);
                 }
-             //   logger.d(nw + " "  + msg );
             } while ((msg = this.handler.getOutputQ().dequeue()) != null);
         }
 
@@ -206,6 +205,7 @@ class ChannelWrapper {
             reqCnt++;
             String temp = this.builder.substring(0, lineFeed);
             this.builder = this.builder.delete(0, lineFeed + 1);
+
             return temp;
         }
 
