@@ -7,14 +7,14 @@
 
         <File name="client" fileName="logs/client.log">
             <PatternLayout>
-                <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+                <Pattern pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
             </PatternLayout>
         </File>
 
 
         <File name="server" fileName="logs/server.log">
             <PatternLayout>
-                <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+                <Pattern pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
             </PatternLayout>
         </File>
 
@@ -26,7 +26,7 @@
         </Logger>
         <Root level="info">
             <AppenderRef ref="Console"/>
-            <AppenderRef ref="server"/>
+        //    <AppenderRef ref="server"/>
         </Root>
     </Loggers>
 </Configuration>

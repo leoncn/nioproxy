@@ -1,0 +1,25 @@
+package org.sample;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.nio.ByteBuffer;
+
+/**
+ * Created by U0128754 on 12/21/2015.
+ */
+public class TextLineDecoder implements ByteBufferQueueDecoder<String> {
+    private final Logger logger = LogManager.getLogger();
+
+    @Override
+    public String decode(ByteBufferQueue queue) {
+        int position = -1;
+
+        if( ( position = queue.indexOf((byte)'\n') ) > -1) {
+            ByteBuffer buf = queue.dequeue(position + 1);
+           return new String(buf.array());
+        }
+
+        return null;
+    }
+}

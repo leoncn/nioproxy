@@ -1,5 +1,6 @@
 package org.sample;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;
 
 /**
@@ -7,9 +8,9 @@ import java.nio.channels.SelectableChannel;
  */
 public interface IInputQueue<T> {
 
-    public void equeue(byte[] bytes);
+    public void equeue(ByteBuffer buffer);
 
-    public T nextMessage() ;
+    public T dequeue() ;
 
     public boolean isEmpty();
 }

@@ -58,13 +58,12 @@ public class EchoClient {
         ExecutorService pool = Executors.newCachedThreadPool();
 
         long N = 10240;
-        int M = 4;//Runtime.getRuntime().availableProcessors();
+        int M = 10;//Runtime.getRuntime().availableProcessors();
         CountDownLatch doneSignal = new CountDownLatch(M);
         CountDownLatch startSinal = new CountDownLatch(M + 1);
 
 
-        Runnable task = () -> {
-          //  int i = 0;
+        Runnable sendNMsgsTask = () -> {
             try {
                 ConnecionPipe pipe = client.createConnect(Thread.currentThread().getName(),
                         (cp, bytes) -> {
@@ -96,17 +95,17 @@ public class EchoClient {
 
         Instant now = java.time.Instant.now();
 
-        IntStream.range(0, M).forEach(i -> pool.submit(task));
+        IntStream.range(0, M).forEach(i -> pool.submit(sendNMsgsTask));
 
         startSinal.countDown();
         doneSignal.await();
 
         logger.printf(Level.INFO, "Rate %d", M*N/java.time.Duration.between(now, Instant.now()).toMillis());
-        cache.forEach((key, v) -> client.logger.printf(Level.INFO, "%s:%s%n", key.hashCode(), v));
+       // cache.forEach((key, v) -> client.logger.printf(Level.INFO, "%s:%s%n", key.hashCode(), v));
         logger.printf(Level.INFO, "All %d * %d have been done.", M, N);
         pool.shutdown();
         pool.awaitTermination(5, TimeUnit.SECONDS);
-        logger.info("pool shutdown." + pool.isShutdown());
+        logger.info("pool shutdown.");
         connector.dispose(true);
 
     }

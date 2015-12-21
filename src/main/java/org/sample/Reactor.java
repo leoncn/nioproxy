@@ -65,10 +65,10 @@ public class Reactor {
                 protected void compute() {
                     try {
                         handler.process();
-                    } catch (IOException e) {
-                        logger.error(e);
+                    } catch (Exception e) {
+                        logger.error("", e);
                     } finally {
-                        completeHandlers.add(handler);
+                        while(!completeHandlers.offer(handler));
                         sel.wakeup();
                     }
                 }

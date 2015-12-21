@@ -2,9 +2,7 @@ package org.sample.client.echo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sample.IHandler;
-import org.sample.IInputQueue;
-import org.sample.IOutputQueue;
+import org.sample.*;
 
 
 /**
@@ -14,36 +12,28 @@ public class EchoHandler implements IHandler {
 
     private Logger logger = LogManager.getLogger();
 
-    private IOutputQueue<String> outputQ = null;
-    private IInputQueue<String> inputQ = null;
+    private ByteBufferQueue outputQ = new ByteBufferQueue();
+    private ByteBufferQueue inputQ = new ByteBufferQueue();
+    private TextLineDecoder decoder = new TextLineDecoder();
+    private TextLineEncoder encoder = new TextLineEncoder();
 
     @Override
     public void handle() {
-        Object req = null;
-        while ((req = this.getInputQ().nextMessage()) != null) {
-            String res = String.format("%s%n", req);
-            this.getOutputQ().enqueue(res.toUpperCase().getBytes());
+        String inMsg = null;
+
+        while( ( inMsg = decoder.decode(inputQ)) != null) {
+
+            this.getOutputQ().equeue(encoder.encode(inMsg.toUpperCase()));
         }
     }
 
     @Override
-    public IOutputQueue getOutputQ() {
+    public ByteBufferQueue getOutputQ() {
         return outputQ;
     }
 
     @Override
-    public void setOutputQ(IOutputQueue queue) {
-        this.outputQ = queue;
-
-    }
-
-    @Override
-    public IInputQueue getInputQ() {
+    public ByteBufferQueue getInputQ() {
         return inputQ;
-    }
-
-    @Override
-    public void setInputQ(IInputQueue queue) {
-        this.inputQ = queue;
     }
 }

@@ -7,12 +7,8 @@ public interface IHandler {
 
     public void handle();
 
-    public IOutputQueue getOutputQ();
+    public ByteBufferQueue getOutputQ();
 
-    public IInputQueue getInputQ();
-
-    public void setOutputQ(IOutputQueue queue);
-
-    public void setInputQ(IInputQueue queue);
+    public ByteBufferQueue getInputQ();
 
 }
