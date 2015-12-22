@@ -5,32 +5,33 @@ import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
-import java.util.Optional;
 
 /**
  * Created by U0128754 on 12/21/2015.
  */
 public class ByteBufferQueue {
-    private Logger logger = LogManager.getLogger();
-
     private final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+    private Logger logger = LogManager.getLogger();
     private LinkedList<ByteBuffer> buffers = new LinkedList<>();
     private ByteBuffer active = EMPTY_BUFFER;
-    private int qsize = 1024;
+    private int bufferSize = 1024;
+    private int numOfByteBuffered = 0;
 
     public ByteBufferQueue() {
     }
 
-    public ByteBufferQueue(int qsize) {
-        this.qsize = qsize;
+    public ByteBufferQueue(int bufferSize) {
+        this.bufferSize = bufferSize;
     }
 
     public int equeue(ByteBuffer buffer) {
-        return appendToBuffers(buffer);
+        int bufferedBytes = appendToBuffers(buffer);
+        numOfByteBuffered += bufferedBytes;
+        return bufferedBytes;
     }
 
     public ByteBuffer dequeue() {
-        return this.dequeue(qsize);
+        return this.dequeue(bufferSize);
     }
 
     public ByteBuffer dequeue(int length) {
@@ -39,13 +40,16 @@ public class ByteBufferQueue {
             return null;
         }
 
-        ByteBuffer retBuf = ByteBuffer.allocate(length);
+        int bufSize = Math.min(numOfByteBuffered, length);
+        ByteBuffer retBuf = ByteBuffer.allocate(bufSize);
 
-        while (length > 0 && (active = this.getNextActive()) != EMPTY_BUFFER) {
-            length -= this.bufferCopy(active, retBuf, length);
+        while (bufSize > 0 && (active = this.nextBufferToRead()) != EMPTY_BUFFER) {
+            bufSize -= this.bufferCopy(active, retBuf, bufSize);
         }
 
         retBuf.flip();
+
+        numOfByteBuffered-=retBuf.remaining();
 
         return retBuf;
     }
@@ -53,46 +57,38 @@ public class ByteBufferQueue {
     public int indexOf(byte b) {
         int idx = -1;
 
-        int from = active.position(), to = active.limit();
-        int numOfByteBeforeFound = (idx = indexOf(active.array(), from, to, b)) > -1 ? idx : active.remaining();
+        int numOfByteBeforeFound = (idx = indexOf(active.slice(), b)) > -1 ? idx : active.remaining();
         if (idx > -1)
-            return numOfByteBeforeFound - from;
+            return numOfByteBeforeFound;
 
         for (ByteBuffer buf : this.buffers) {
-            from = 0;
-            to = buf.position();
-            numOfByteBeforeFound += (idx = indexOf(buf.array(), from, to, b)) > -1 ? idx : buf.position();
+        ByteBuffer dup = buf.duplicate(); dup.flip();
+
+        numOfByteBeforeFound += (idx = indexOf(dup, b)) > -1 ? idx : dup.remaining();
 
             if (idx > -1)
-                return numOfByteBeforeFound - from;
+                return numOfByteBeforeFound;
         }
 
         return -1;
     }
 
-    private int indexOf(byte[] bytes, int from, int to, byte b) {
-        int i;
+    private int indexOf(ByteBuffer buf,  byte b) {
+        int i, len = buf.remaining();
 
-        for (i = from; i < to && bytes[i] != b; i++)
+        for (i = 0; i < len && buf.get(i) != b; i++)
             ;
 
-        return i == to ? -1 : i;
+        return i == len ? -1 : i;
     }
 
 
     public boolean isEmpty() {
-        if(this.buffers.isEmpty()) {
-            return !this.active.hasRemaining();
-        }
-
-        ByteBuffer temp = this.buffers.stream()
-                .filter( buf -> buf.capacity() > 0).findAny().orElse(EMPTY_BUFFER);
-
-       return !this.active.hasRemaining() && temp == EMPTY_BUFFER;
+        return numOfByteBuffered == 0;
 
     }
 
-    private ByteBuffer getNextActive() {
+    private ByteBuffer nextBufferToRead() {
         if (this.isEmpty()) {
             return EMPTY_BUFFER;
         }
@@ -108,13 +104,19 @@ public class ByteBufferQueue {
     }
 
     private int appendToBuffers(ByteBuffer buf) {
-        int n = topUp(buf);
+        if(!buf.hasRemaining()) {
+            return 0;
+        }
 
+        int n = 0;
         while(buf.hasRemaining()) {
-            ByteBuffer newBuf = this.allocBuffer();
-            int ncopy = this.bufferCopy(buf, newBuf, buf.remaining());
-            n += ncopy;
-            this.buffers.add(newBuf);
+            int ntopUp = topUpTolastBuffer(buf);
+
+            if(ntopUp == 0) {
+                this.buffers.add(this.allocBuffer());
+                continue;
+            }
+            n += ntopUp;
         }
         return n;
     }
@@ -130,20 +132,19 @@ public class ByteBufferQueue {
     }
 
     private ByteBuffer last() {
-        return buffers.isEmpty() ? allocBuffer() : buffers.removeLast();
+        return buffers.isEmpty() ? null : buffers.removeLast();
     }
 
-    private int topUp(ByteBuffer buf) {
-        if(!buf.hasRemaining())
-            return 0;
-
+    private int topUpTolastBuffer(ByteBuffer buf) {
         ByteBuffer last = this.last();
+        if(last == null) return 0;
+
         int ncopy = bufferCopy(buf, last, buf.remaining());
         this.buffers.addLast(last);
         return ncopy;
     }
 
     private ByteBuffer allocBuffer() {
-        return ByteBuffer.allocate(qsize);
+        return ByteBuffer.allocate(bufferSize);
     }
 }

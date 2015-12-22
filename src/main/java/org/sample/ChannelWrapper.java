@@ -59,7 +59,7 @@ class ChannelWrapper {
             this.fillInput();
             handler.handle();
             this.drainOutput();
-        } catch (IOException e) {
+        } catch (Throwable e) {
             this.offWriteOps();
             this.offReadOps();
             throw e;
@@ -78,6 +78,7 @@ class ChannelWrapper {
         int nr = sc.read(inputBuf);
 
         if (nr == -1) {
+            logger.info("remote peer closed input stream.");
             this.offReadOps();
             this.sc.shutdownInput();
             return;
@@ -85,11 +86,14 @@ class ChannelWrapper {
 
         do {
             inputBuf.flip();
+
             int numEqueue = handler.getInputQ().equeue(inputBuf);
-            if(numEqueue == 0) {
+            if (inputBuf.hasRemaining() && numEqueue == 0) {
                 logger.info("input queue is full.");
             }
+
             inputBuf.compact();
+
         } while ((nr = sc.read(inputBuf)) > 0);
 
         onReadOps();
@@ -101,7 +105,7 @@ class ChannelWrapper {
         boolean writePending = output != null;
 
         if (writePending) {
-       //     logger.info("write out message.");
+            //     logger.info("write out message.");
             do {
                 while (output.hasRemaining()) {
                     sc.write(output);

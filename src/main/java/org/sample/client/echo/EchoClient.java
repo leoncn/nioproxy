@@ -13,11 +13,9 @@ import org.apache.mina.transport.socket.nio.NioSocketConnector;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.time.Instant;
-import java.time.temporal.TemporalUnit;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -29,9 +27,8 @@ public class EchoClient {
     private static final String CONN_PIPE_KEY = "PIPE";
 
     private static Logger logger = LogManager.getLogger();
-
-    private SocketAddress remoteAddr = null;
     private static NioSocketConnector connector = new NioSocketConnector();
+    private SocketAddress remoteAddr = null;
 
     public EchoClient(SocketAddress remoteAddr) {
         this.remoteAddr = remoteAddr;
@@ -54,10 +51,10 @@ public class EchoClient {
 
         ConcurrentHashMap<ConnecionPipe, AtomicLong> cache = new ConcurrentHashMap<>();
 
-       // ForkJoinPool fjp = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+        // ForkJoinPool fjp = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
         ExecutorService pool = Executors.newCachedThreadPool();
 
-        long N = 10240;
+        long N = 1024 * 20;
         int M = 10;//Runtime.getRuntime().availableProcessors();
         CountDownLatch doneSignal = new CountDownLatch(M);
         CountDownLatch startSinal = new CountDownLatch(M + 1);
@@ -100,8 +97,8 @@ public class EchoClient {
         startSinal.countDown();
         doneSignal.await();
 
-        logger.printf(Level.INFO, "Rate %d", M*N/java.time.Duration.between(now, Instant.now()).toMillis());
-       // cache.forEach((key, v) -> client.logger.printf(Level.INFO, "%s:%s%n", key.hashCode(), v));
+        logger.printf(Level.INFO, "Rate %d", M * N / java.time.Duration.between(now, Instant.now()).toMillis());
+        // cache.forEach((key, v) -> client.logger.printf(Level.INFO, "%s:%s%n", key.hashCode(), v));
         logger.printf(Level.INFO, "All %d * %d have been done.", M, N);
         pool.shutdown();
         pool.awaitTermination(5, TimeUnit.SECONDS);
@@ -134,7 +131,7 @@ public class EchoClient {
         }
 
         public String getName() {
-            return this.name ;
+            return this.name;
         }
 
         public void setSession(IoSession session) {
@@ -187,6 +184,8 @@ public class EchoClient {
         @Override
         public void exceptionCaught(IoSession session, Throwable cause) throws Exception {
             super.exceptionCaught(session, cause);
+            logger.printf(Level.ERROR, "Read %d : Write %d", session.getReadMessages(), session.getWrittenMessages());
+            logger.error("", cause);
         }
 
         @Override
