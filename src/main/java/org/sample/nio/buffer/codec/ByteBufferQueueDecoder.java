@@ -1,8 +1,8 @@
-package org.sample;
+package org.sample.nio.buffer.codec;
 
-/**
- * Created by U0128754 on 12/21/2015.
- */
+import org.sample.nio.buffer.ByteBufferQueue;
+
+
 public interface ByteBufferQueueDecoder<T> {
 
     public T decode(ByteBufferQueue queue);

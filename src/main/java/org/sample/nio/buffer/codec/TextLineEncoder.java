@@ -1,11 +1,7 @@
-package org.sample;
+package org.sample.nio.buffer.codec;
 
 import java.nio.ByteBuffer;
-import java.util.Scanner;
 
-/**
- * Created by U0128754 on 12/21/2015.
- */
 public class TextLineEncoder implements ByteBufferQueueEncoder<String> {
     @Override
     public ByteBuffer encode(String s) {

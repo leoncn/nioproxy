@@ -1,8 +1,8 @@
-package org.sample;
+package org.sample.nio;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sample.nio.buffer.ByteBufferQueue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -10,10 +10,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
-/**
- * Created by U0128754 on 12/14/2015.
- */
-class ChannelWrapper {
+
+public class ChannelWrapper {
 
     private Logger logger = LogManager.getLogger();
 
@@ -22,20 +20,16 @@ class ChannelWrapper {
     private IHandler handler;
     private InetSocketAddress remoteAddr = null;
 
-    private int reqCnt = 0;
-    private int resCnt = 0;
-
-    private int intrestingOps = 0, readyOps = 0;
+    private int intrestingOps = 0;
     private ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 
-    public ChannelWrapper(SelectionKey key, SocketChannel sc, IHandler handler) {
-        this.key = key;
+    public ChannelWrapper(SocketChannel sc, IHandler handler) {
         this.sc = sc;
         this.handler = handler;
         try {
             this.remoteAddr = (InetSocketAddress) sc.getRemoteAddress();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Can not init.", e);
         }
     }
 
@@ -47,18 +41,20 @@ class ChannelWrapper {
         return this.key;
     }
 
+    public void setKey(SelectionKey key) {
+        this.key = key;
+    }
+
     public void prepare() {
         this.intrestingOps = this.key.interestOps();
-        this.readyOps = this.key.readyOps();
-
         this.key.interestOps(0); //disable all ops
     }
 
     public void process() throws IOException {
         try {
-            this.fillInput();
-            handler.handle();
-            this.drainOutput();
+            this.fillInput(); //Read input
+            handler.handle(); //Process input
+            this.drainOutput(); //Write out results
         } catch (Throwable e) {
             this.offWriteOps();
             this.offReadOps();
@@ -67,11 +63,7 @@ class ChannelWrapper {
     }
 
     public boolean isDone() {
-        boolean done = this.isWriteOpsOff() && this.isReadOpsOff();
-        logger.printf(Level.DEBUG, "%s total req %d , res %d | read:%s write:%s.",
-                this.key.hashCode(), this.reqCnt, this.resCnt, !this.isReadOpsOff(), !this.isWriteOpsOff());
-
-        return done;
+        return this.isWriteOpsOff() && this.isReadOpsOff();
     }
 
     private void fillInput() throws IOException {
@@ -88,6 +80,7 @@ class ChannelWrapper {
             inputBuf.flip();
 
             int numEqueue = handler.getInputQ().equeue(inputBuf);
+
             if (inputBuf.hasRemaining() && numEqueue == 0) {
                 logger.info("input queue is full.");
             }
@@ -96,16 +89,16 @@ class ChannelWrapper {
 
         } while ((nr = sc.read(inputBuf)) > 0);
 
-        onReadOps();
+        onReadOps(); //always intrests read ops
     }
 
     private void drainOutput() throws IOException {
+        ByteBufferQueue outputQ = this.handler.getOutputQ();
+        ByteBuffer output = outputQ.dequeue();
 
-        ByteBuffer output = this.handler.getOutputQ().dequeue();
         boolean writePending = output != null;
 
         if (writePending) {
-            //     logger.info("write out message.");
             do {
                 while (output.hasRemaining()) {
                     sc.write(output);
@@ -113,7 +106,7 @@ class ChannelWrapper {
             } while ((output = this.handler.getOutputQ().dequeue()) != null);
         }
 
-        if (this.handler.getOutputQ().isEmpty() && !writePending) {
+        if (outputQ.isEmpty() && !writePending) {
             this.offWriteOps();
         } else {
             this.onWriteOps();

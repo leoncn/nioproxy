@@ -1,4 +1,4 @@
-package org.sample.client.echo;
+package org.sample.nio.echo.client;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -20,9 +20,7 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-/**
- * Created by U0128754 on 12/16/2015.
- */
+
 public class EchoClient {
     private static final String CONN_PIPE_KEY = "PIPE";
 
@@ -51,11 +49,10 @@ public class EchoClient {
 
         ConcurrentHashMap<ConnecionPipe, AtomicLong> cache = new ConcurrentHashMap<>();
 
-        // ForkJoinPool fjp = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
         ExecutorService pool = Executors.newCachedThreadPool();
 
-        long N = 1024 * 20;
-        int M = 10;//Runtime.getRuntime().availableProcessors();
+        long N = 1024 * 10;
+        int M = 12;//Runtime.getRuntime().availableProcessors();
         CountDownLatch doneSignal = new CountDownLatch(M);
         CountDownLatch startSinal = new CountDownLatch(M + 1);
 
@@ -90,11 +87,10 @@ public class EchoClient {
             }
         };
 
-        Instant now = java.time.Instant.now();
-
         IntStream.range(0, M).forEach(i -> pool.submit(sendNMsgsTask));
 
         startSinal.countDown();
+        Instant now = java.time.Instant.now();
         doneSignal.await();
 
         logger.printf(Level.INFO, "Rate %d", M * N / java.time.Duration.between(now, Instant.now()).toMillis());

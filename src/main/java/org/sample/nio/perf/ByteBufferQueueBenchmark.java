@@ -1,15 +1,11 @@
-package org.sample.perf;
+package org.sample.nio.perf;
 
 import  org.openjdk.jmh.annotations.*;
-import org.sample.ByteBufferQueue;
+import org.sample.nio.buffer.ByteBufferQueue;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.stream.IntStream;
-
-/**
- * Created by U0128754 on 12/22/2015.
- */
 
 @State(Scope.Thread)
 public class ByteBufferQueueBenchmark {
@@ -26,7 +22,7 @@ public class ByteBufferQueueBenchmark {
 
     @Setup
     public void init() {
-        this.queue = new ByteBufferQueue(512);
+        this.queue = new ByteBufferQueue();
     }
 
 
