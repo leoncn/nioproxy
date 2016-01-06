@@ -92,6 +92,11 @@ THE POSSIBILITY OF SUCH DAMAGE.
             <version>4.12</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.reactivex</groupId>
+            <artifactId>rxjava</artifactId>
+            <version>1.0.10</version>
+        </dependency>
     </dependencies>
 
     <properties>
