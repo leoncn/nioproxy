@@ -3,18 +3,14 @@ package org.sample.rx;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import rx.Observable;
-import rx.Observer;
 import rx.Subscriber;
-import rx.Subscription;
 import rx.observables.ConnectableObservable;
 import rx.observers.SafeSubscriber;
-import rx.schedulers.Schedulers;
 import rx.subscriptions.Subscriptions;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -41,7 +37,6 @@ public class ReactorSum {
                 }
 
                 if (!subscriber.isUnsubscribed()) {
-
                     subscriber.onCompleted();
                 }
             } catch (IOException e) {
@@ -49,11 +44,11 @@ public class ReactorSum {
             }
         });
 
-        ConnectableObservable<String> notEmitUntilConn = lineInput.publish();
+        ConnectableObservable<String> sourceObs = lineInput.publish();
 
 
         Function<Pattern, Observable<Integer>> lineParser = (pattern) ->
-                notEmitUntilConn
+                sourceObs
                         .filter(line ->
                                 {
                                     return pattern.matcher(line).matches();
@@ -65,7 +60,7 @@ public class ReactorSum {
                                 }
                         );
 
-        Subscriber<Integer> sub = new SafeSubscriber<Integer>(new Subscriber<Integer>() {
+        Subscriber<Integer> whenUnsub = new SafeSubscriber<Integer>(new Subscriber<Integer>() {
 
             @Override
             public void onCompleted() {
@@ -83,7 +78,7 @@ public class ReactorSum {
             }
         });
 
-        sub.add(Subscriptions.create( () -> {
+        whenUnsub.add(Subscriptions.create(() -> {
             System.out.println("unsubscribe callback");
         }));
 
@@ -92,9 +87,9 @@ public class ReactorSum {
                 lineParser.apply(Pattern.compile("^a.*")),
                 lineParser.apply(Pattern.compile("^b.*")),
                 (x, y) -> x + y
-        ).subscribe(sub);
+        ).subscribe(whenUnsub);
 
 
-        notEmitUntilConn.connect();
+        sourceObs.connect();
     }
 }
