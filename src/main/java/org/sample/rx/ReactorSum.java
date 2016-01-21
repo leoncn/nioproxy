@@ -84,8 +84,8 @@ public class ReactorSum {
 
 
         Observable.combineLatest(
-                lineParser.apply(Pattern.compile("^a.*")),
-                lineParser.apply(Pattern.compile("^b.*")),
+                lineParser.apply(Pattern.compile("^a.*")).startWith(0),
+                lineParser.apply(Pattern.compile("^b.*")).startWith(0),
                 (x, y) -> x + y
         ).subscribe(whenUnsub);
 

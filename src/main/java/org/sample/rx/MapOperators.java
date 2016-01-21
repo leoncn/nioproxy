@@ -42,9 +42,15 @@ public class MapOperators {
 
 
         logger.info("switchMap operator");
-        Observable.just(1,2,3)
+        Observable.interval(100, TimeUnit.MILLISECONDS)
+                .take(5)
                 .switchMap(i -> {
-                    return Observable.interval(10, TimeUnit.MILLISECONDS).take(i);
+                    logger.info("r " + i);
+                    return Observable.interval(20, TimeUnit.MILLISECONDS)
+                            .map(
+                                    x ->String.format("Source emits %d, switchMap emits %d", i, x)
+                            );
+
                 })
                 .subscribe(logSubFunc.get());
 
